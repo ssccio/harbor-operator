@@ -43,6 +43,11 @@ func (r *HarborReconciler) reconcileComponents(ctx context.Context, harbor *regi
 	if err = r.ensureInternalSecret(ctx, harbor); err != nil {
 		return 0, 0, fmt.Errorf("internal secret: %w", err)
 	}
+	// Core TLS cert: private key mounted in harbor-core, root.crt in harbor-registry.
+	// Created once — rotating requires restarting both core and registry simultaneously.
+	if err = r.ensureCoreCertSecret(ctx, harbor); err != nil {
+		return 0, 0, fmt.Errorf("core cert secret: %w", err)
+	}
 
 	// ── ConfigMaps ─────────────────────────────────────────────────────────────
 	// app.conf is consumed by harbor-core via a volume mount at /etc/core/app.conf.
@@ -52,6 +57,10 @@ func (r *HarborReconciler) reconcileComponents(ctx context.Context, harbor *regi
 	// config.yml is consumed by harbor-registry at /etc/registry/config.yml.
 	if err = r.ensureConfigMap(ctx, harbor, resources.RegistryConfigMap(harbor)); err != nil {
 		return 0, 0, fmt.Errorf("registry configmap: %w", err)
+	}
+	// registryctl config at /etc/registryctl/config.yml for the sidecar.
+	if err = r.ensureConfigMap(ctx, harbor, resources.RegistryctlConfigMap(harbor)); err != nil {
+		return 0, 0, fmt.Errorf("registryctl configmap: %w", err)
 	}
 
 	// ── Internal Redis (optional) ──────────────────────────────────────────────
@@ -113,6 +122,32 @@ func (r *HarborReconciler) reconcileComponents(ctx context.Context, harbor *regi
 	}
 
 	return total, ready, nil
+}
+
+// ensureCoreCertSecret generates and creates the Harbor internal CA cert Secret
+// if it does not already exist. Create-once: the cert is shared between
+// harbor-core (private key) and harbor-registry (root.crt) for JWT signing.
+func (r *HarborReconciler) ensureCoreCertSecret(ctx context.Context, harbor *registryv1alpha1.Harbor) error {
+	existing := &corev1.Secret{}
+	err := r.Get(ctx, types.NamespacedName{
+		Name:      resources.CoreCertSecretName(harbor),
+		Namespace: harbor.Namespace,
+	}, existing)
+	if err == nil {
+		return nil // already exists
+	}
+	if !errors.IsNotFound(err) {
+		return err
+	}
+
+	desired, err := resources.CoreCertSecret(harbor)
+	if err != nil {
+		return fmt.Errorf("generate core cert: %w", err)
+	}
+	if err := controllerutil.SetControllerReference(harbor, desired, r.Scheme); err != nil {
+		return err
+	}
+	return r.Create(ctx, desired)
 }
 
 // ensureInternalSecret creates the Harbor internal-secrets Secret if it does

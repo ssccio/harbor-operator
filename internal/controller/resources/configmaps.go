@@ -82,6 +82,33 @@ portal_url = http://%s:80
 	}
 }
 
+// RegistryctlConfigMapName returns the ConfigMap name for the registryctl sidecar.
+func RegistryctlConfigMapName(harbor *registryv1alpha1.Harbor) string {
+	return harbor.Name + "-harbor-registryctl-config"
+}
+
+// RegistryctlConfigMap builds the ConfigMap for the harbor-registryctl sidecar.
+// Registryctl manages registry lifecycle; it reads the registry config path from
+// its own config file so it knows where to find the registry's config.yml.
+func RegistryctlConfigMap(harbor *registryv1alpha1.Harbor) *corev1.ConfigMap {
+	cfg := `---
+protocol: "http"
+port: 8080
+log_level: "INFO"
+registry_config: "/etc/registry/config.yml"
+`
+	return &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      RegistryctlConfigMapName(harbor),
+			Namespace: harbor.Namespace,
+			Labels:    labels(harbor, ComponentRegistry),
+		},
+		Data: map[string]string{
+			"config.yml": cfg,
+		},
+	}
+}
+
 // RegistryConfigMap builds the ConfigMap containing the OCI registry config.yml.
 func RegistryConfigMap(harbor *registryv1alpha1.Harbor) *corev1.ConfigMap {
 	var storageSection string

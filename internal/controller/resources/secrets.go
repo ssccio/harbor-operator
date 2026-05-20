@@ -21,7 +21,7 @@ func InternalSecret(harbor *registryv1alpha1.Harbor) *corev1.Secret {
 			Labels:    labels(harbor, "internal"),
 		},
 		StringData: map[string]string{
-			"secretKey":        randomHex(8),  // 16 hex chars = 16-byte AES key
+			"secretKey":        randomHex(8), // 16 hex chars = 16-byte AES key
 			"coreSecret":       randomHex(16),
 			"jobserviceSecret": randomHex(16),
 		},

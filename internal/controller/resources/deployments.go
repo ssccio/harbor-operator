@@ -171,9 +171,14 @@ func CoreDeployment(harbor *registryv1alpha1.Harbor) *appsv1.Deployment {
 							Ports: []corev1.ContainerPort{
 								{Name: "http", ContainerPort: 8080, Protocol: corev1.ProtocolTCP},
 							},
-							VolumeMounts: []corev1.VolumeMount{
-								{Name: "config", MountPath: "/etc/core/app.conf", SubPath: "app.conf"},
-							},
+							VolumeMounts: func() []corev1.VolumeMount {
+								_, certMount := coreCertVolumeAndMount(harbor)
+								return []corev1.VolumeMount{
+									{Name: "config", MountPath: "/etc/core/app.conf", SubPath: "app.conf"},
+									certMount,
+								}
+							}(),
+							// First boot runs DB migrations (~30s); allow 60s before first probe.
 							LivenessProbe: &corev1.Probe{
 								ProbeHandler: corev1.ProbeHandler{
 									HTTPGet: &corev1.HTTPGetAction{
@@ -181,8 +186,9 @@ func CoreDeployment(harbor *registryv1alpha1.Harbor) *appsv1.Deployment {
 										Port: intstr.FromInt(8080),
 									},
 								},
-								InitialDelaySeconds: 30,
+								InitialDelaySeconds: 60,
 								PeriodSeconds:       10,
+								FailureThreshold:    5,
 							},
 							ReadinessProbe: &corev1.Probe{
 								ProbeHandler: corev1.ProbeHandler{
@@ -196,18 +202,22 @@ func CoreDeployment(harbor *registryv1alpha1.Harbor) *appsv1.Deployment {
 							},
 						},
 					},
-					Volumes: []corev1.Volume{
-						{
-							Name: "config",
-							VolumeSource: corev1.VolumeSource{
-								ConfigMap: &corev1.ConfigMapVolumeSource{
-									LocalObjectReference: corev1.LocalObjectReference{
-										Name: CoreConfigMapName(harbor),
+					Volumes: func() []corev1.Volume {
+						certVol, _ := coreCertVolumeAndMount(harbor)
+						return []corev1.Volume{
+							{
+								Name: "config",
+								VolumeSource: corev1.VolumeSource{
+									ConfigMap: &corev1.ConfigMapVolumeSource{
+										LocalObjectReference: corev1.LocalObjectReference{
+											Name: CoreConfigMapName(harbor),
+										},
 									},
 								},
 							},
-						},
-					},
+							certVol,
+						}
+					}(),
 				},
 			},
 		},
@@ -248,6 +258,9 @@ func PortalDeployment(harbor *registryv1alpha1.Harbor) *appsv1.Deployment {
 									corev1.ResourceMemory: resource.MustParse("128Mi"),
 								},
 							},
+							VolumeMounts: []corev1.VolumeMount{
+								{Name: "varrun", MountPath: "/var/run"},
+							},
 							LivenessProbe: &corev1.Probe{
 								ProbeHandler: corev1.ProbeHandler{
 									HTTPGet: &corev1.HTTPGetAction{
@@ -259,6 +272,9 @@ func PortalDeployment(harbor *registryv1alpha1.Harbor) *appsv1.Deployment {
 								PeriodSeconds:       10,
 							},
 						},
+					},
+					Volumes: []corev1.Volume{
+						{Name: "varrun", VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}}},
 					},
 				},
 			},
@@ -307,6 +323,8 @@ func JobserviceDeployment(harbor *registryv1alpha1.Harbor) *appsv1.Deployment {
 							Ports: []corev1.ContainerPort{
 								{Name: "http", ContainerPort: 8080, Protocol: corev1.ProtocolTCP},
 							},
+							// jobservice fetches internalconfig from harbor-core on startup;
+							// allow 60s for core to respond before the first liveness check.
 							LivenessProbe: &corev1.Probe{
 								ProbeHandler: corev1.ProbeHandler{
 									HTTPGet: &corev1.HTTPGetAction{
@@ -314,8 +332,9 @@ func JobserviceDeployment(harbor *registryv1alpha1.Harbor) *appsv1.Deployment {
 										Port: intstr.FromInt(8080),
 									},
 								},
-								InitialDelaySeconds: 20,
+								InitialDelaySeconds: 60,
 								PeriodSeconds:       10,
+								FailureThreshold:    5,
 							},
 						},
 					},
@@ -377,6 +396,8 @@ func RegistryDeployment(harbor *registryv1alpha1.Harbor) *appsv1.Deployment {
 		},
 	}
 
+	certVol, certMount := registryCertVolumeAndMount(harbor)
+
 	return &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name(harbor, ComponentRegistry),
@@ -401,6 +422,7 @@ func RegistryDeployment(harbor *registryv1alpha1.Harbor) *appsv1.Deployment {
 							Resources: mergeResources(harbor.Spec.Resources),
 							VolumeMounts: []corev1.VolumeMount{
 								{Name: "registry-config", MountPath: "/etc/registry/config.yml", SubPath: "config.yml"},
+								certMount,
 							},
 							LivenessProbe: &corev1.Probe{
 								ProbeHandler: corev1.ProbeHandler{
@@ -432,10 +454,24 @@ func RegistryDeployment(harbor *registryv1alpha1.Harbor) *appsv1.Deployment {
 							},
 							VolumeMounts: []corev1.VolumeMount{
 								{Name: "registry-config", MountPath: "/etc/registry/config.yml", SubPath: "config.yml"},
+								{Name: "registryctl-config", MountPath: "/etc/registryctl/config.yml", SubPath: "config.yml"},
 							},
 						},
 					},
-					Volumes: []corev1.Volume{configVol},
+					Volumes: []corev1.Volume{
+						configVol,
+						certVol,
+						{
+							Name: "registryctl-config",
+							VolumeSource: corev1.VolumeSource{
+								ConfigMap: &corev1.ConfigMapVolumeSource{
+									LocalObjectReference: corev1.LocalObjectReference{
+										Name: RegistryctlConfigMapName(harbor),
+									},
+								},
+							},
+						},
+					},
 				},
 			},
 		},

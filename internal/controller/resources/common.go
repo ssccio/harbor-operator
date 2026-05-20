@@ -6,12 +6,12 @@ import (
 
 // Component names
 const (
-	ComponentCore        = "core"
-	ComponentPortal      = "portal"
-	ComponentJobservice  = "jobservice"
-	ComponentRegistry    = "registry"
-	ComponentTrivy       = "trivy"
-	ComponentRedis       = "redis"
+	ComponentCore       = "core"
+	ComponentPortal     = "portal"
+	ComponentJobservice = "jobservice"
+	ComponentRegistry   = "registry"
+	ComponentTrivy      = "trivy"
+	ComponentRedis      = "redis"
 )
 
 // defaultHarborVersion is the version tag appended to all goharbor/* images
