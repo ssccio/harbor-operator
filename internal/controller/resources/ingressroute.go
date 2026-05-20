@@ -14,46 +14,11 @@ func IngressRoute(harbor *registryv1alpha1.Harbor) *unstructured.Unstructured {
 		entryPoint = "websecure"
 	}
 
-	host := "Host(`" + harbor.Spec.Hostname + "`)"
-
-	// Harbor routing — Traefik evaluates routes top-to-bottom; specific paths first.
-	//
-	//  /api/         → core (REST API)
-	//  /c/           → core (legacy cookie auth)
-	//  /service/     → core (token service, notifications)
-	//  /v2/          → registry (OCI distribution API, proxied through core auth)
-	//  /             → portal (Angular SPA, plain nginx)
+	// All traffic goes to portal. Portal's nginx.conf proxies /api/, /c/,
+	// /service/, /v2/ to harbor-core internally; Traefik only needs one rule.
 	routes := []interface{}{
 		map[string]interface{}{
-			"match": host + " && PathPrefix(`/api/`)",
-			"kind":  "Rule",
-			"services": []interface{}{
-				map[string]interface{}{"name": CoreServiceName(harbor), "port": int64(80)},
-			},
-		},
-		map[string]interface{}{
-			"match": host + " && PathPrefix(`/c/`)",
-			"kind":  "Rule",
-			"services": []interface{}{
-				map[string]interface{}{"name": CoreServiceName(harbor), "port": int64(80)},
-			},
-		},
-		map[string]interface{}{
-			"match": host + " && PathPrefix(`/service/`)",
-			"kind":  "Rule",
-			"services": []interface{}{
-				map[string]interface{}{"name": CoreServiceName(harbor), "port": int64(80)},
-			},
-		},
-		map[string]interface{}{
-			"match": host + " && PathPrefix(`/v2/`)",
-			"kind":  "Rule",
-			"services": []interface{}{
-				map[string]interface{}{"name": CoreServiceName(harbor), "port": int64(80)},
-			},
-		},
-		map[string]interface{}{
-			"match": host,
+			"match": "Host(`" + harbor.Spec.Hostname + "`)",
 			"kind":  "Rule",
 			"services": []interface{}{
 				map[string]interface{}{"name": PortalServiceName(harbor), "port": int64(80)},

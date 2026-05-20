@@ -54,6 +54,11 @@ func (r *HarborReconciler) reconcileComponents(ctx context.Context, harbor *regi
 	if err = r.ensureConfigMap(ctx, harbor, resources.CoreConfigMap(harbor)); err != nil {
 		return 0, 0, fmt.Errorf("core configmap: %w", err)
 	}
+	// nginx.conf for harbor-portal: serves Angular SPA from the correct root and
+	// proxies /api/, /c/, /service/, /v2/ to harbor-core.
+	if err = r.ensureConfigMap(ctx, harbor, resources.PortalNginxConfigMap(harbor)); err != nil {
+		return 0, 0, fmt.Errorf("portal nginx configmap: %w", err)
+	}
 	// config.yml is consumed by harbor-registry at /etc/registry/config.yml.
 	if err = r.ensureConfigMap(ctx, harbor, resources.RegistryConfigMap(harbor)); err != nil {
 		return 0, 0, fmt.Errorf("registry configmap: %w", err)

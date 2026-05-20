@@ -261,6 +261,9 @@ func PortalDeployment(harbor *registryv1alpha1.Harbor) *appsv1.Deployment {
 							},
 							VolumeMounts: []corev1.VolumeMount{
 								{Name: "varrun", MountPath: "/var/run"},
+								// Override default nginx.conf: serve Angular from /usr/share/nginx/html
+								// and proxy /api/ /c/ /service/ /v2/ to harbor-core.
+								{Name: "portal-nginx-config", MountPath: "/etc/nginx/nginx.conf", SubPath: "nginx.conf"},
 							},
 							LivenessProbe: &corev1.Probe{
 								ProbeHandler: corev1.ProbeHandler{
@@ -276,6 +279,14 @@ func PortalDeployment(harbor *registryv1alpha1.Harbor) *appsv1.Deployment {
 					},
 					Volumes: []corev1.Volume{
 						{Name: "varrun", VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}}},
+						{
+							Name: "portal-nginx-config",
+							VolumeSource: corev1.VolumeSource{
+								ConfigMap: &corev1.ConfigMapVolumeSource{
+									LocalObjectReference: corev1.LocalObjectReference{Name: PortalNginxConfigMapName(harbor)},
+								},
+							},
+						},
 					},
 				},
 			},

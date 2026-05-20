@@ -87,6 +87,77 @@ func RegistryctlConfigMapName(harbor *registryv1alpha1.Harbor) string {
 	return harbor.Name + "-harbor-registryctl-config"
 }
 
+// PortalNginxConfigMapName returns the ConfigMap name for the portal nginx config.
+func PortalNginxConfigMapName(harbor *registryv1alpha1.Harbor) string {
+	return harbor.Name + "-harbor-portal-nginx"
+}
+
+// PortalNginxConfigMap builds a minimal nginx.conf that:
+//   - serves the Harbor Angular SPA from /usr/share/nginx/html (where the
+//     goharbor/harbor-portal image installs the frontend)
+//   - proxies /api/, /c/, /service/ to harbor-core so the browser's
+//     same-origin API calls resolve correctly
+func PortalNginxConfigMap(harbor *registryv1alpha1.Harbor) *corev1.ConfigMap {
+	coreUpstream := fmt.Sprintf("http://%s:80", CoreServiceName(harbor))
+	cfg := fmt.Sprintf(`worker_processes 1;
+events { worker_connections 1024; }
+http {
+  include      mime.types;
+  default_type application/octet-stream;
+  sendfile     on;
+  keepalive_timeout 65;
+  server {
+    listen 80;
+    server_name localhost;
+
+    # Angular SPA — fall back to index.html for client-side routing.
+    location / {
+      root  /usr/share/nginx/html;
+      index index.html;
+      try_files $uri $uri/ /index.html;
+    }
+
+    # Proxy Harbor API paths to core.
+    location /api/ {
+      proxy_pass %s/api/;
+      proxy_set_header Host $host;
+      proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+      proxy_set_header X-Forwarded-Proto $scheme;
+    }
+    location /c/ {
+      proxy_pass %s/c/;
+      proxy_set_header Host $host;
+      proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+      proxy_set_header X-Forwarded-Proto $scheme;
+    }
+    location /service/ {
+      proxy_pass %s/service/;
+      proxy_set_header Host $host;
+      proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+      proxy_set_header X-Forwarded-Proto $scheme;
+    }
+    location /v2/ {
+      proxy_pass %s/v2/;
+      proxy_set_header Host $host;
+      proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+      proxy_set_header X-Forwarded-Proto $scheme;
+    }
+  }
+}
+`, coreUpstream, coreUpstream, coreUpstream, coreUpstream)
+
+	return &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      PortalNginxConfigMapName(harbor),
+			Namespace: harbor.Namespace,
+			Labels:    labels(harbor, ComponentPortal),
+		},
+		Data: map[string]string{
+			"nginx.conf": cfg,
+		},
+	}
+}
+
 // JobserviceConfigMap builds the ConfigMap for harbor-jobservice.
 // Jobservice requires a config.yml at /etc/jobservice/config.yml; the heavy
 // lifting (Redis URL, worker count, log dir) is still driven by env vars, but
