@@ -1,0 +1,38 @@
+# Headless Service + EndpointSlice to expose the host-level Postgres
+# (running as a systemd service on debian/10.0.0.100) inside the cluster.
+#
+# After applying this, Harbor pods can connect via:
+#   postgres://harbor:PASSWORD@harbor-pg.harbor.svc:5432/harbor
+# instead of hardcoding the node IP in the secret.
+#
+# Apply with: kubectl apply -f postgres-on-host.yaml -n harbor
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: harbor-pg
+  namespace: harbor
+spec:
+  clusterIP: None   # headless — DNS resolves to the endpoint IPs directly
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: 5432
+---
+apiVersion: discovery.k8s.io/v1
+kind: EndpointSlice
+metadata:
+  name: harbor-pg
+  namespace: harbor
+  labels:
+    kubernetes.io/service-name: harbor-pg
+addressType: IPv4
+ports:
+  - name: postgres
+    port: 5432
+    protocol: TCP
+endpoints:
+  - addresses:
+      - "10.0.0.100"   # debian — host-level Postgres
+    conditions:
+      ready: true

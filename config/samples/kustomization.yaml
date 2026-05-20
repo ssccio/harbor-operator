@@ -1,0 +1,5 @@
+## Append samples of your project ##
+resources:
+- registry_v1alpha1_harbor.yaml
+- registry_v1alpha1_harborbackup.yaml
+# +kubebuilder:scaffold:manifestskustomizesamples

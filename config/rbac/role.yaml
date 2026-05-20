@@ -1,0 +1,81 @@
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: manager-role
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  - persistentvolumeclaims
+  - secrets
+  - services
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - events
+  verbs:
+  - create
+  - patch
+- apiGroups:
+  - apps
+  resources:
+  - deployments
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - registry.gocadmium.dev
+  resources:
+  - harborbackups
+  - harbors
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - registry.gocadmium.dev
+  resources:
+  - harborbackups/finalizers
+  - harbors/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - registry.gocadmium.dev
+  resources:
+  - harborbackups/status
+  - harbors/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - traefik.io
+  resources:
+  - ingressroutes
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch

@@ -1,0 +1,39 @@
+# Minimal Harbor instance using internal Redis and S3 storage (MinIO in-cluster).
+#
+# Prerequisites:
+#   1. A Secret named "harbor-db" with keys: host, port, username, password, database
+#      (points to the host-level Postgres at 10.0.0.100:5432 — see postgres-on-host.yaml).
+#   2. A Secret named "harbor-s3" with keys: accessKey, secretKey
+#      (points to in-cluster MinIO at http://minio.minio.svc:9000).
+#   3. Cloudflare tunnel entry for harbor.sscc.io → Traefik LB at 10.0.0.100:443.
+apiVersion: registry.gocadmium.dev/v1alpha1
+kind: Harbor
+metadata:
+  name: harbor
+  namespace: harbor
+spec:
+  hostname: harbor.sscc.io
+
+  database:
+    secretRef:
+      name: harbor-db   # keys: host, port, username, password, database
+
+  redis:
+    type: internal      # operator deploys redis:7.2-alpine; switch to external + secretRef for prod
+
+  storage:
+    type: s3
+    s3:
+      endpoint: http://minio.minio.svc:9000
+      bucket: harbor-registry
+      region: us-east-1
+      secretRef:
+        name: harbor-s3  # keys: accessKey, secretKey
+
+  trivy:
+    enabled: true
+
+  tls:
+    enabled: true
+    entryPoint: websecure
+    # certResolver: ""  # empty = rely on Cloudflare edge TLS termination

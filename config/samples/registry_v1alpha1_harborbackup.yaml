@@ -1,0 +1,19 @@
+# HarborBackup is a Level-3 stub — the CRD exists but the controller sets
+# Degraded=True/NotImplemented until the backup logic is implemented.
+# Apply this to verify the CRD is installed and the controller is running.
+apiVersion: registry.gocadmium.dev/v1alpha1
+kind: HarborBackup
+metadata:
+  name: harbor-backup
+  namespace: harbor
+spec:
+  harborRef:
+    name: harbor
+  schedule: "0 3 * * *"   # 3 AM daily; empty string = on-demand only
+  retentionDays: 30
+  # destination:
+  #   s3:
+  #     bucket: harbor-backups
+  #     prefix: harbor/
+  #     credentialsSecretRef:
+  #       name: harbor-backup-s3
