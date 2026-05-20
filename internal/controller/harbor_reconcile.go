@@ -62,6 +62,10 @@ func (r *HarborReconciler) reconcileComponents(ctx context.Context, harbor *regi
 	if err = r.ensureConfigMap(ctx, harbor, resources.RegistryctlConfigMap(harbor)); err != nil {
 		return 0, 0, fmt.Errorf("registryctl configmap: %w", err)
 	}
+	// jobservice config at /etc/jobservice/config.yml.
+	if err = r.ensureConfigMap(ctx, harbor, resources.JobserviceConfigMap(harbor)); err != nil {
+		return 0, 0, fmt.Errorf("jobservice configmap: %w", err)
+	}
 
 	// ── Internal Redis (optional) ──────────────────────────────────────────────
 	// Only deployed when redis.type == "internal" (the default).

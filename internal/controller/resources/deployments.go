@@ -245,8 +245,9 @@ func PortalDeployment(harbor *registryv1alpha1.Harbor) *appsv1.Deployment {
 						{
 							Name:  ComponentPortal,
 							Image: fmt.Sprintf("goharbor/harbor-portal:%s", ver),
+							// harbor-portal nginx listens on port 80 (not 8080).
 							Ports: []corev1.ContainerPort{
-								{Name: "http", ContainerPort: 8080, Protocol: corev1.ProtocolTCP},
+								{Name: "http", ContainerPort: 80, Protocol: corev1.ProtocolTCP},
 							},
 							Resources: corev1.ResourceRequirements{
 								Requests: corev1.ResourceList{
@@ -265,7 +266,7 @@ func PortalDeployment(harbor *registryv1alpha1.Harbor) *appsv1.Deployment {
 								ProbeHandler: corev1.ProbeHandler{
 									HTTPGet: &corev1.HTTPGetAction{
 										Path: "/",
-										Port: intstr.FromInt(8080),
+										Port: intstr.FromInt(80),
 									},
 								},
 								InitialDelaySeconds: 10,
@@ -289,7 +290,8 @@ func JobserviceDeployment(harbor *registryv1alpha1.Harbor) *appsv1.Deployment {
 	internalSec := InternalSecretName(harbor)
 
 	env := []corev1.EnvVar{
-		{Name: "CORE_URL", Value: fmt.Sprintf("http://%s:8080", CoreServiceName(harbor))},
+		// Core Service port is 80 (→ targetPort 8080); use port 80 here.
+		{Name: "CORE_URL", Value: fmt.Sprintf("http://%s:80", CoreServiceName(harbor))},
 		{Name: "TOKEN_SERVICE_URL", Value: "https://" + harbor.Spec.Hostname + "/service/token"},
 		{Name: "REGISTRY_URL", Value: fmt.Sprintf("http://%s:5000", RegistryServiceName(harbor))},
 		{Name: "REGISTRY_CONTROLLER_URL", Value: fmt.Sprintf("http://%s:8080", RegistryServiceName(harbor))},
@@ -323,6 +325,9 @@ func JobserviceDeployment(harbor *registryv1alpha1.Harbor) *appsv1.Deployment {
 							Ports: []corev1.ContainerPort{
 								{Name: "http", ContainerPort: 8080, Protocol: corev1.ProtocolTCP},
 							},
+							VolumeMounts: []corev1.VolumeMount{
+								{Name: "jobservice-config", MountPath: "/etc/jobservice/config.yml", SubPath: "config.yml"},
+							},
 							// jobservice fetches internalconfig from harbor-core on startup;
 							// allow 60s for core to respond before the first liveness check.
 							LivenessProbe: &corev1.Probe{
@@ -335,6 +340,16 @@ func JobserviceDeployment(harbor *registryv1alpha1.Harbor) *appsv1.Deployment {
 								InitialDelaySeconds: 60,
 								PeriodSeconds:       10,
 								FailureThreshold:    5,
+							},
+						},
+					},
+					Volumes: []corev1.Volume{
+						{
+							Name: "jobservice-config",
+							VolumeSource: corev1.VolumeSource{
+								ConfigMap: &corev1.ConfigMapVolumeSource{
+									LocalObjectReference: corev1.LocalObjectReference{Name: JobserviceConfigMapName(harbor)},
+								},
 							},
 						},
 					},
@@ -424,11 +439,13 @@ func RegistryDeployment(harbor *registryv1alpha1.Harbor) *appsv1.Deployment {
 								{Name: "registry-config", MountPath: "/etc/registry/config.yml", SubPath: "config.yml"},
 								certMount,
 							},
+							// Port 5001 is the debug endpoint; / returns 404 there.
+							// Port 5000 at / returns 200 for a healthy registry.
 							LivenessProbe: &corev1.Probe{
 								ProbeHandler: corev1.ProbeHandler{
 									HTTPGet: &corev1.HTTPGetAction{
 										Path: "/",
-										Port: intstr.FromInt(5001),
+										Port: intstr.FromInt(5000),
 									},
 								},
 								InitialDelaySeconds: 10,

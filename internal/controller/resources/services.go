@@ -35,8 +35,9 @@ func PortalService(harbor *registryv1alpha1.Harbor) *corev1.Service {
 		},
 		Spec: corev1.ServiceSpec{
 			Selector: ls,
+			// harbor-portal nginx listens on 80; targetPort matches.
 			Ports: []corev1.ServicePort{
-				{Name: "http", Port: 80, TargetPort: intstr.FromInt(8080)},
+				{Name: "http", Port: 80, TargetPort: intstr.FromInt(80)},
 			},
 		},
 	}

@@ -87,6 +87,44 @@ func RegistryctlConfigMapName(harbor *registryv1alpha1.Harbor) string {
 	return harbor.Name + "-harbor-registryctl-config"
 }
 
+// JobserviceConfigMap builds the ConfigMap for harbor-jobservice.
+// Jobservice requires a config.yml at /etc/jobservice/config.yml; the heavy
+// lifting (Redis URL, worker count, log dir) is still driven by env vars, but
+// the file must exist or jobservice panics at startup.
+func JobserviceConfigMap(harbor *registryv1alpha1.Harbor) *corev1.ConfigMap {
+	cfg := `---
+protocol: "http"
+port: 8080
+worker_pool:
+  workers: 10
+  backend: "redis"
+  redis_pool:
+    namespace: "harbor_job_service_namespace"
+job_loggers:
+  - name: "FILE"
+    level: "INFO"
+    settings:
+      base_dir: "/var/log/jobs"
+    sweeper:
+      duration: 1
+      settings:
+        work_dir: "/var/log/jobs"
+loggers:
+  - name: "STD_OUTPUT"
+    level: "INFO"
+`
+	return &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      JobserviceConfigMapName(harbor),
+			Namespace: harbor.Namespace,
+			Labels:    labels(harbor, ComponentJobservice),
+		},
+		Data: map[string]string{
+			"config.yml": cfg,
+		},
+	}
+}
+
 // RegistryctlConfigMap builds the ConfigMap for the harbor-registryctl sidecar.
 // Registryctl manages registry lifecycle; it reads the registry config path from
 // its own config file so it knows where to find the registry's config.yml.

@@ -54,6 +54,11 @@ func RegistryConfigMapName(harbor *registryv1alpha1.Harbor) string {
 	return harbor.Name + "-harbor-registry-config"
 }
 
+// JobserviceConfigMapName is the ConfigMap holding jobservice config.yml.
+func JobserviceConfigMapName(harbor *registryv1alpha1.Harbor) string {
+	return harbor.Name + "-harbor-jobservice-config"
+}
+
 // CoreServiceName returns the ClusterIP Service name for harbor-core.
 func CoreServiceName(harbor *registryv1alpha1.Harbor) string {
 	return name(harbor, ComponentCore)
