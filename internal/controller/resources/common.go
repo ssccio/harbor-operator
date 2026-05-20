@@ -14,7 +14,9 @@ const (
 	ComponentRedis       = "redis"
 )
 
-// Default Harbor image tag
+// defaultHarborVersion is the version tag appended to all goharbor/* images
+// when spec.image is not set. Must be a bare tag (e.g. "v2.13.0"), not a
+// full image reference — it is interpolated as "goharbor/harbor-core:<tag>".
 const defaultHarborVersion = "v2.13.0"
 
 func name(harbor *registryv1alpha1.Harbor, component string) string {

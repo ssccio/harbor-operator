@@ -144,8 +144,9 @@ type HarborTLSSpec struct {
 
 // HarborSpec defines the desired state of Harbor.
 type HarborSpec struct {
-	// image is the Harbor core container image.
-	// +kubebuilder:default="goharbor/harbor-core:v2.13.0"
+	// image is the Harbor version tag applied to all component images
+	// (e.g. "v2.13.0"). All goharbor/* images share a version tag.
+	// +kubebuilder:default="v2.13.0"
 	// +optional
 	Image string `json:"image,omitempty"`
 

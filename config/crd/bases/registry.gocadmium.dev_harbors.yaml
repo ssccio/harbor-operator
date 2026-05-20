@@ -97,8 +97,10 @@ spec:
                 minLength: 1
                 type: string
               image:
-                default: goharbor/harbor-core:v2.13.0
-                description: image is the Harbor core container image.
+                default: v2.13.0
+                description: |-
+                  image is the Harbor version tag applied to all component images
+                  (e.g. "v2.13.0"). All goharbor/* images share a version tag.
                 type: string
               redis:
                 description: redis configures the Redis instance for caching and job

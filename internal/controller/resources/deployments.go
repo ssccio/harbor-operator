@@ -58,6 +58,24 @@ func dbEnvFromSecret(secretName string) []corev1.EnvVar {
 	}
 }
 
+// redisURLEnvVar returns an EnvVar for the given name set to either the
+// internal Redis URL (static value) or the external Redis URL read from the
+// user-provided Secret key REDIS_URL.
+func redisURLEnvVar(harbor *registryv1alpha1.Harbor, envVarName string) corev1.EnvVar {
+	if harbor.Spec.Redis.Type == registryv1alpha1.RedisExternal && harbor.Spec.Redis.SecretRef != nil {
+		return corev1.EnvVar{
+			Name: envVarName,
+			ValueFrom: &corev1.EnvVarSource{
+				SecretKeyRef: &corev1.SecretKeySelector{
+					LocalObjectReference: corev1.LocalObjectReference{Name: harbor.Spec.Redis.SecretRef.Name},
+					Key:                  "REDIS_URL",
+				},
+			},
+		}
+	}
+	return corev1.EnvVar{Name: envVarName, Value: RedisURL(harbor)}
+}
+
 func internalSecretEnv(secretName string) []corev1.EnvVar {
 	field := func(key, secretKey string) corev1.EnvVar {
 		return corev1.EnvVar{
@@ -118,21 +136,7 @@ func CoreDeployment(harbor *registryv1alpha1.Harbor) *appsv1.Deployment {
 	env = append(env, dbEnvFromSecret(dbSec)...)
 	env = append(env, internalSecretEnv(internalSec)...)
 
-	// Redis URL
-	redisURL := RedisURL(harbor)
-	if harbor.Spec.Redis.Type == registryv1alpha1.RedisExternal && harbor.Spec.Redis.SecretRef != nil {
-		env = append(env, corev1.EnvVar{
-			Name: "_REDIS_URL_CORE",
-			ValueFrom: &corev1.EnvVarSource{
-				SecretKeyRef: &corev1.SecretKeySelector{
-					LocalObjectReference: corev1.LocalObjectReference{Name: harbor.Spec.Redis.SecretRef.Name},
-					Key:                  "REDIS_URL",
-				},
-			},
-		})
-	} else {
-		env = append(env, corev1.EnvVar{Name: "_REDIS_URL_CORE", Value: redisURL})
-	}
+	env = append(env, redisURLEnvVar(harbor, "_REDIS_URL_CORE"))
 
 	if harbor.Spec.AdminPasswordSecretRef != nil {
 		env = append(env, corev1.EnvVar{
@@ -268,7 +272,6 @@ func JobserviceDeployment(harbor *registryv1alpha1.Harbor) *appsv1.Deployment {
 	ver := harborVersion(harbor)
 	internalSec := InternalSecretName(harbor)
 
-	redisURL := RedisURL(harbor)
 	env := []corev1.EnvVar{
 		{Name: "CORE_URL", Value: fmt.Sprintf("http://%s:8080", CoreServiceName(harbor))},
 		{Name: "TOKEN_SERVICE_URL", Value: "https://" + harbor.Spec.Hostname + "/service/token"},
@@ -276,11 +279,11 @@ func JobserviceDeployment(harbor *registryv1alpha1.Harbor) *appsv1.Deployment {
 		{Name: "REGISTRY_CONTROLLER_URL", Value: fmt.Sprintf("http://%s:8080", RegistryServiceName(harbor))},
 		{Name: "JOB_SERVICE_POOL_WORKERS", Value: "10"},
 		{Name: "JOB_SERVICE_POOL_BACKEND", Value: "redis"},
-		{Name: "JOB_SERVICE_POOL_REDIS_URL", Value: redisURL},
 		{Name: "JOB_SERVICE_POOL_REDIS_NAMESPACE", Value: "harbor_job_service_namespace"},
 		{Name: "JOB_SERVICE_LOGGER_SWEEPER_DURATION", Value: "1"},
 		{Name: "LOG_LEVEL", Value: "INFO"},
 	}
+	env = append(env, redisURLEnvVar(harbor, "JOB_SERVICE_POOL_REDIS_URL"))
 	env = append(env, internalSecretEnv(internalSec)...)
 
 	return &appsv1.Deployment{
@@ -444,8 +447,6 @@ func TrivyDeployment(harbor *registryv1alpha1.Harbor) *appsv1.Deployment {
 	ls := labels(harbor, ComponentTrivy)
 	ver := harborVersion(harbor)
 
-	redisURL := RedisURL(harbor)
-
 	env := []corev1.EnvVar{
 		{Name: "SCANNER_LOG_LEVEL", Value: "info"},
 		{Name: "SCANNER_TRIVY_CACHE_DIR", Value: "/home/scanner/.cache/trivy"},
@@ -453,11 +454,11 @@ func TrivyDeployment(harbor *registryv1alpha1.Harbor) *appsv1.Deployment {
 		{Name: "SCANNER_TRIVY_VULN_TYPE", Value: "os,library"},
 		{Name: "SCANNER_TRIVY_SEVERITY", Value: "UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL"},
 		{Name: "SCANNER_TRIVY_IGNORE_UNFIXED", Value: "false"},
-		{Name: "SCANNER_STORE_REDIS_URL", Value: redisURL},
-		{Name: "SCANNER_JOB_QUEUE_REDIS_URL", Value: redisURL},
 		{Name: "SCANNER_REDIS_NAMESPACE", Value: "harbor.scanner.trivy"},
 		{Name: "SCANNER_TRIVY_TIMEOUT", Value: "5m0s"},
 	}
+	env = append(env, redisURLEnvVar(harbor, "SCANNER_STORE_REDIS_URL"))
+	env = append(env, redisURLEnvVar(harbor, "SCANNER_JOB_QUEUE_REDIS_URL"))
 
 	return &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
